@@ -1,0 +1,353 @@
+import tkinter as tk
+from tkinter import ttk, messagebox, simpledialog
+import mysql.connector
+
+DB_CONFIG = {
+    'host': 'localhost',
+    'user': 'gift',
+    'password': 'useruser',
+    'database': 'soms'
+}
+
+
+class SOMSApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Student Organization Management System")
+        self.root.geometry("1000x700")
+        self.create_sign_in()
+
+    def create_sign_in(self):
+        self.clear_root()
+        self.root.configure(bg="#f0f4f7")
+
+        tk.Label(self.root, text="Sign In", font=("Helvetica", 24, "bold"),
+                bg="#f0f4f7", fg="#2a2f45").pack(pady=40)
+
+        form_frame = tk.Frame(self.root, bg="#f0f4f7")
+        form_frame.pack(pady=10)
+
+        tk.Label(form_frame, text="Username:", font=("Helvetica", 12), bg="#f0f4f7").grid(row=0, column=0, sticky="e", pady=5)
+        self.username_entry = tk.Entry(form_frame, font=("Helvetica", 12), width=30)
+        self.username_entry.grid(row=0, column=1, padx=10, pady=5)
+
+        tk.Label(form_frame, text="Password:", font=("Helvetica", 12), bg="#f0f4f7").grid(row=1, column=0, sticky="e", pady=5)
+        self.password_entry = tk.Entry(form_frame, font=("Helvetica", 12), show="*", width=30)
+        self.password_entry.grid(row=1, column=1, padx=10, pady=5)
+
+        login_btn = tk.Button(self.root, text="Login", font=("Helvetica", 12, "bold"), bg="#4caf50", fg="white",
+                            relief="flat", command=self.authenticate_user)
+        login_btn.pack(pady=20)
+        self.add_hover_effect(login_btn, "#4caf50", "#45a049")
+
+    def authenticate_user(self):
+        username = self.username_entry.get().strip()
+        password = self.password_entry.get().strip()
+
+        if not username or not password:
+            messagebox.showwarning("Input Error", "Please enter both username and password.")
+            return
+
+        try:
+            print("Connecting with:", DB_CONFIG)
+            conn = mysql.connector.connect(**DB_CONFIG)
+            cursor = conn.cursor()
+            query = "SELECT * FROM users WHERE username = %s AND password = %s"
+            cursor.execute(query, (username, password))
+            result = cursor.fetchone()
+
+            if result:
+                self.create_dashboard()
+            else:
+                messagebox.showerror("Login Failed", "Invalid username or password.")
+
+            conn.close()
+        except mysql.connector.Error as err:
+            messagebox.showerror("Database Error", str(err))
+
+
+    def create_dashboard(self):
+        self.clear_root()
+        self.root.configure(bg="#f0f4f7")  # Light background
+
+        tk.Label(self.root, text="Organization Dashboard", font=("Helvetica", 24, "bold"),
+                bg="#f0f4f7", fg="#2a2f45").pack(pady=20)
+
+        # Search frame
+        search_frame = tk.Frame(self.root, bg="#f0f4f7")
+        search_frame.pack(pady=10)
+        tk.Label(search_frame, text="Search Organization:", font=("Helvetica", 12),
+                bg="#f0f4f7").pack(side=tk.LEFT)
+        self.org_search_entry = tk.Entry(search_frame, font=("Helvetica", 12), width=30)
+        self.org_search_entry.pack(side=tk.LEFT, padx=5)
+
+        search_btn = tk.Button(search_frame, text="Search", font=("Helvetica", 10, "bold"),
+                            bg="#4a90e2", fg="white", relief="flat", command=self.search_organization)
+        search_btn.pack(side=tk.LEFT, padx=5)
+        self.add_hover_effect(search_btn, "#4a90e2", "#357ABD")
+
+        # Organization info frame
+        self.org_info_frame = tk.LabelFrame(self.root, text="Organization Info", font=("Helvetica", 12, "bold"),
+                                            bg="#ffffff", padx=10, pady=10)
+        self.org_info_frame.pack(fill="x", padx=10, pady=10)
+
+        self.org_labels = {
+            "Name": tk.Label(self.org_info_frame, text="Name: ", font=("Helvetica", 11), bg="#ffffff"),
+            "Type": tk.Label(self.org_info_frame, text="Type: ", font=("Helvetica", 11), bg="#ffffff"),
+            "Members": tk.Label(self.org_info_frame, text="Members: ", font=("Helvetica", 11), bg="#ffffff"),
+            "ID": tk.Label(self.org_info_frame, text="ID: ", font=("Helvetica", 11), bg="#ffffff")
+        }
+        for label in self.org_labels.values():
+            label.pack(anchor="w", pady=2)
+
+        # Action buttons
+        action_frame = tk.Frame(self.root, bg="#f0f4f7")
+        action_frame.pack(pady=15)
+
+        btn1 = tk.Button(action_frame, text="Membership Management", width=25, font=("Helvetica", 10, "bold"),
+                        bg="#4caf50", fg="white", relief="flat", command=self.open_membership_management)
+        btn1.pack(side=tk.LEFT, padx=10)
+        self.add_hover_effect(btn1, "#4caf50", "#45a049")
+
+        btn2 = tk.Button(action_frame, text="Fees Management", width=25, font=("Helvetica", 10, "bold"),
+                        bg="#4caf50", fg="white", relief="flat", command=self.open_fees_management)
+        btn2.pack(side=tk.LEFT, padx=10)
+        self.add_hover_effect(btn2, "#4caf50", "#45a049")
+
+        btn3 = tk.Button(action_frame, text="Other Reports", width=25, font=("Helvetica", 10, "bold"),
+                        bg="#4caf50", fg="white", relief="flat", command=self.open_reports)
+        btn3.pack(side=tk.LEFT, padx=10)
+        self.add_hover_effect(btn3, "#4caf50", "#45a049")
+
+        # Report section
+        self.report_frame = tk.LabelFrame(self.root, text="Other Reports", font=("Helvetica", 12, "bold"),
+                                        bg="#ffffff", padx=10, pady=10)
+        self.report_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        self.report_dropdown = ttk.Combobox(self.report_frame, width=90, state="readonly", font=("Helvetica", 10))
+        self.report_dropdown['values'] = [
+            "1. Members by Role, Status, Gender, Degree, etc.",
+            "2. Members with Unpaid Fees (Semester + SY)",
+            "3. Member’s Unpaid Fees (All Orgs)",
+            "4. Executive Committee Members (By Year)",
+            "5. Presidents Per Year (Reverse Chrono)",
+            "6. Late Payments in a Semester",
+            "7. % Active vs Inactive Members",
+            "8. Alumni Members as of Date",
+            "9. Total Paid vs Unpaid Fees (As of Date)",
+            "10. Member with Highest Debt"
+        ]
+        self.report_dropdown.pack(pady=5)
+
+        gen_report_btn = tk.Button(self.report_frame, text="Generate Report", font=("Helvetica", 10, "bold"),
+                                bg="#2196f3", fg="white", relief="flat", command=self.generate_report)
+        gen_report_btn.pack(pady=5)
+        self.add_hover_effect(gen_report_btn, "#2196f3", "#1976d2")
+
+        self.report_output = tk.Text(self.report_frame, height=15, font=("Courier", 10), bg="#f9f9f9")
+        self.report_output.pack(fill="both", expand=True, pady=5)
+
+    def add_hover_effect(self, widget, bg_normal, bg_hover):
+        widget.bind("<Enter>", lambda e: widget.config(bg=bg_hover))
+        widget.bind("<Leave>", lambda e: widget.config(bg=bg_normal))
+
+    def search_organization(self):
+        org_name = self.org_search_entry.get()
+        try:
+            conn = mysql.connector.connect(**DB_CONFIG)
+            cursor = conn.cursor()
+            query = "SELECT organization_id, organization_name, organization_type, no_of_members FROM organization WHERE organization_name LIKE %s"
+            cursor.execute(query, ('%' + org_name + '%',))
+            result = cursor.fetchone()
+            if result:
+                org_id, name, org_type, members = result
+                self.org_labels["Name"].config(text=f"Name: {name}")
+                self.org_labels["Type"].config(text=f"Type: {org_type}")
+                self.org_labels["Members"].config(text=f"Members: {members}")
+                self.org_labels["ID"].config(text=f"ID: {org_id}")
+                self.selected_org_id = org_id
+            else:
+                messagebox.showinfo("Not Found", "Organization not found.")
+        except mysql.connector.Error as err:
+            messagebox.showerror("Database Error", str(err))
+
+    def generate_report(self):
+        index = self.report_dropdown.current()
+        org_id = getattr(self, "selected_org_id", None)
+
+        if org_id is None and index not in [2]:  # Query 3 doesn't use org_id
+            messagebox.showerror("Error", "Please select an organization first.")
+            return
+
+        try:
+            conn = mysql.connector.connect(**DB_CONFIG)
+            cursor = conn.cursor()
+
+            if index == 0:
+                # Query 1
+                query = '''
+                    SELECT s.committee_role, s.membership_status, m.gender, m.degree_program,
+                        s.batch_year_of_membership, s.committee
+                    FROM member_serves s
+                    INNER JOIN member m ON m.student_id = s.student_id
+                    WHERE s.organization_id = %s
+                '''
+                cursor.execute(query, (org_id,))
+
+            elif index == 1:
+                # Query 2
+                school_year = simpledialog.askstring("Input", "Enter School Year (e.g., 2023):")
+                semester = simpledialog.askstring("Input", "Enter Semester (e.g., 1):")
+                query = '''
+                    SELECT m.member_name, f.amount, f.payment_status, s.batch_year_of_membership,
+                        s.semester, s.school_year
+                    FROM member m
+                    INNER JOIN member_serves s ON m.student_id = s.student_id
+                    INNER JOIN fee f ON m.student_id = f.student_id
+                    WHERE f.payment_status = 'Not Paid'
+                    AND s.organization_id = %s
+                    AND f.school_year = %s
+                    AND f.semester = %s
+                '''
+                cursor.execute(query, (org_id, school_year, semester))
+
+            elif index == 2:
+                # Query 3
+                student_id = simpledialog.askstring("Input", "Enter Student ID:")
+                if not student_id:
+                    return
+                query = '''
+                    SELECT o.organization_name, f.amount, f.due_date, f.payment_status,
+                        f.school_year, f.semester
+                    FROM fee f
+                    INNER JOIN member_serves s ON f.student_id = s.student_id
+                    INNER JOIN organization o ON s.organization_id = o.organization_id
+                    WHERE f.payment_status = 'Not Paid'
+                    AND f.student_id = %s
+                '''
+                cursor.execute(query, (student_id,))
+
+            elif index == 3:
+                # Query 4
+                school_year = simpledialog.askstring("Input", "Enter School Year:")
+                query = '''
+                    SELECT m.member_name, s.committee_role, s.school_year
+                    FROM member_serves s
+                    INNER JOIN member m ON s.student_id = m.student_id
+                    WHERE s.committee_role != 'Member'
+                    AND s.organization_id = %s
+                    AND s.school_year = %s
+                '''
+                cursor.execute(query, (org_id, school_year))
+
+            elif index == 4:
+                # Query 5
+                query = '''
+                    SELECT m.member_name, s.committee_role, s.school_year
+                    FROM member_serves s
+                    INNER JOIN member m ON s.student_id = m.student_id
+                    WHERE s.committee_role = 'President'
+                    AND s.organization_id = %s
+                    ORDER BY s.school_year DESC
+                '''
+                cursor.execute(query, (org_id,))
+
+            elif index == 5:
+                # Query 6
+                school_year = simpledialog.askstring("Input", "Enter School Year:")
+                semester = simpledialog.askstring("Input", "Enter Semester:")
+                query = '''
+                    SELECT member_name, payment_status, due_date, pay_date
+                    FROM fee f
+                    LEFT JOIN member m ON f.student_id = m.student_id
+                    WHERE organization_id = %s
+                    AND school_year = %s
+                    AND semester = %s
+                    AND payment_status = 'Paid'
+                    AND pay_date > due_date
+                '''
+                cursor.execute(query, (org_id, school_year, semester))
+
+            elif index == 6:
+                # Query 7
+                query = '''
+                    SELECT 
+                        COUNT(CASE WHEN membership_status = 'Active' THEN 1 END)/COUNT(*) AS '%Active',
+                        COUNT(CASE WHEN membership_status = 'Inactive' THEN 1 END)/COUNT(*) AS '%Inactive'
+                    FROM member_serves ms
+                    LEFT JOIN organization org ON ms.organization_id = org.organization_id
+                    WHERE ms.organization_id = %s
+                '''
+                cursor.execute(query, (org_id,))
+
+            elif index == 7:
+                # Query 8
+                query = '''
+                    SELECT member_name, enrollment_status, graduation_date
+                    FROM member m
+                    LEFT JOIN member_serves ms ON m.student_id = ms.student_id
+                    WHERE organization_id = %s
+                    AND enrollment_status = 'Graduated'
+                    AND graduation_date >= DATE_SUB(CURRENT_DATE(), INTERVAL (20 * 6) MONTH)
+                '''
+                cursor.execute(query, (org_id,))
+
+            elif index == 8:
+                # Query 9
+                query = '''
+                    SELECT SUM(amount) AS "Total Amount", payment_status
+                    FROM fee f
+                    LEFT JOIN organization o ON f.organization_id = o.organization_id
+                    WHERE f.organization_id = %s
+                    AND due_date < DATE("2024-01-01")
+                    AND COALESCE(pay_date < DATE("2024-01-01"), 1)
+                    GROUP BY f.payment_status
+                '''
+                cursor.execute(query, (org_id,))
+
+            elif index == 9:
+                # Query 10
+                query = '''
+                    SELECT MAX(Amount) AS "Total Amount", Member FROM (
+                        SELECT SUM(amount) AS Amount, member_name AS Member
+                        FROM fee f
+                        LEFT JOIN member m ON f.student_id = m.student_id
+                        WHERE f.organization_id = %s
+                        GROUP BY f.student_id
+                    ) q
+                '''
+                cursor.execute(query, (org_id,))
+
+            else:
+                self.report_output.delete("1.0", tk.END)
+                self.report_output.insert(tk.END, "Report not yet implemented.")
+                return
+
+            rows = cursor.fetchall()
+            self.report_output.delete("1.0", tk.END)
+            if not rows:
+                self.report_output.insert(tk.END, "No results found.")
+            else:
+                for row in rows:
+                    self.report_output.insert(tk.END, str(row) + "\n")
+
+        except mysql.connector.Error as err:
+            messagebox.showerror("Database Error", str(err))
+
+    def open_membership_management(self):
+        messagebox.showinfo("Coming Soon", "Membership Management module will be implemented next.")
+
+    def open_fees_management(self):
+        messagebox.showinfo("Coming Soon", "Fees Management module will be implemented next.")
+
+    def open_reports(self):
+        pass  # already shown in main screen
+
+    def clear_root(self):
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = SOMSApp(root)
+    root.mainloop()
