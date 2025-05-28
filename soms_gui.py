@@ -16,6 +16,22 @@ class SOMSApp:
         self.root.title("Student Organization Management System")
         self.root.geometry("1000x700")
         self.create_sign_in()
+        #####
+        self.organizations = {} # Dictionary to store org_name: org_id mapping
+
+    def fetch_organizations(self):
+        try:
+            conn = mysql.connector.connect(**DB_CONFIG)
+            cursor = conn.cursor()
+            query = "SELECT organization_id, organization_name FROM organization ORDER BY organization_name"
+            cursor.execute(query)
+            results = cursor.fetchall()
+            self.organizations = {org_name: org_id for org_id, org_name in results}
+            conn.close()
+            return list(self.organizations.keys())
+        except mysql.connector.Error as err:
+            messagebox.showerror("Database Error", str(err))
+            return []
 
     def clear_root(self):
         for widget in self.root.winfo_children():
@@ -72,23 +88,23 @@ class SOMSApp:
 
     def create_dashboard(self):
         self.clear_root()
-        self.root.configure(bg="#f0f4f7")  # Light background
+        self.root.configure(bg="#f0f4f7") # Light background
 
         tk.Label(self.root, text="Organization Dashboard", font=("Helvetica", 24, "bold"),
-                bg="#f0f4f7", fg="#2a2f45").pack(pady=20)
-
-        # Search frame
+                bg="#f0f4f7", fg="#2a2f45").pack(pady=20) # Search frame
         search_frame = tk.Frame(self.root, bg="#f0f4f7")
         search_frame.pack(pady=10)
-        tk.Label(search_frame, text="Search Organization:", font=("Helvetica", 12),
+        tk.Label(search_frame, text="Select Organization:", font=("Helvetica", 12),
                 bg="#f0f4f7").pack(side=tk.LEFT)
-        self.org_search_entry = tk.Entry(search_frame, font=("Helvetica", 12), width=30)
-        self.org_search_entry.pack(side=tk.LEFT, padx=5)
-
-        search_btn = tk.Button(search_frame, text="Search", font=("Helvetica", 10, "bold"),
-                            bg="#4a90e2", fg="white", relief="flat", command=self.search_organization)
-        search_btn.pack(side=tk.LEFT, padx=5)
-        self.add_hover_effect(search_btn, "#4a90e2", "#357ABD")
+        
+        # Create and populate the Combobox
+        organizations = self.fetch_organizations()
+        self.org_search_combo = ttk.Combobox(search_frame, font=("Helvetica", 12), width=30, state="readonly")
+        self.org_search_combo['values'] = organizations
+        self.org_search_combo.pack(side=tk.LEFT, padx=5)
+        
+        # Bind the combobox selection to automatically search
+        self.org_search_combo.bind('<<ComboboxSelected>>', lambda e: self.search_organization())
 
         # Organization info frame
         self.org_info_frame = tk.LabelFrame(self.root, text="Organization Info", font=("Helvetica", 12, "bold"),
@@ -124,7 +140,7 @@ class SOMSApp:
         self.add_hover_effect(btn3, "#4caf50", "#45a049")
 
         # Report section
-        self.report_frame = tk.LabelFrame(self.root, text="Other Reports", font=("Helvetica", 12, "bold"),
+        self.report_frame = tk.LabelFrame(self.root, text="Generate Reports", font=("Helvetica", 12, "bold"),
                                         bg="#ffffff", padx=10, pady=10)
         self.report_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
@@ -132,7 +148,7 @@ class SOMSApp:
         self.report_dropdown['values'] = [
             "1. Members by Role, Status, Gender, Degree, etc.",
             "2. Members with Unpaid Fees (Semester + SY)",
-            "3. Member’s Unpaid Fees (All Orgs)",
+            "3. Member's Unpaid Fees (All Orgs)",
             "4. Executive Committee Members (By Year)",
             "5. Presidents Per Year (Reverse Chrono)",
             "6. Late Payments in a Semester",
@@ -146,17 +162,24 @@ class SOMSApp:
         gen_report_btn = tk.Button(self.report_frame, text="Generate Report", font=("Helvetica", 10, "bold"),
                                 bg="#2196f3", fg="white", relief="flat", command=self.generate_report)
         gen_report_btn.pack(pady=5)
-        self.add_hover_effect(gen_report_btn, "#2196f3", "#1976d2")
-
-        self.report_output = tk.Text(self.report_frame, height=15, font=("Courier", 10), bg="#f9f9f9")
+        self.add_hover_effect(gen_report_btn, "#2196f3", "#1976d2") # Create Treeview for tabular data display
+        self.report_output = ttk.Treeview(self.report_frame, height=15, show="headings")
         self.report_output.pack(fill="both", expand=True, pady=5)
+        
+        # Add scrollbars
+        y_scrollbar = ttk.Scrollbar(self.report_frame, orient="vertical", command=self.report_output.yview)
+        y_scrollbar.pack(side="right", fill="y")
+        x_scrollbar = ttk.Scrollbar(self.report_frame, orient="horizontal", command=self.report_output.xview)
+        x_scrollbar.pack(side="bottom", fill="x")
+        
+        self.report_output.configure(yscrollcommand=y_scrollbar.set, xscrollcommand=x_scrollbar.set)
 
     def add_hover_effect(self, widget, bg_normal, bg_hover):
         widget.bind("<Enter>", lambda e: widget.config(bg=bg_hover))
         widget.bind("<Leave>", lambda e: widget.config(bg=bg_normal))
 
     def search_organization(self):
-        org_name = self.org_search_entry.get()
+        org_name = self.org_search_combo.get()
         try:
             conn = mysql.connector.connect(**DB_CONFIG)
             cursor = conn.cursor()
@@ -179,8 +202,12 @@ class SOMSApp:
         index = self.report_dropdown.current()
         org_id = getattr(self, "selected_org_id", None)
 
-        if org_id is None and index not in [2]:  # Query 3 doesn't use org_id
+        if org_id is None and index not in [2]: # Query 3 doesn't use org_id
             messagebox.showerror("Error", "Please select an organization first.")
+            return
+
+        if index not in [0,1,2,3,4,5,6,7,8,9]: 
+            messagebox.showerror("Error", "Please select a report first.")
             return
 
         try:
@@ -190,7 +217,7 @@ class SOMSApp:
             if index == 0:
                 # Query 1
                 query = '''
-                    SELECT s.committee_role, s.membership_status, m.gender, m.degree_program,
+                    SELECT m.student_id, m.member_name, s.committee_role, s.membership_status, m.gender, m.degree_program,
                         s.batch_year_of_membership, s.committee
                     FROM member_serves s
                     INNER JOIN member m ON m.student_id = s.student_id
@@ -325,15 +352,26 @@ class SOMSApp:
             else:
                 self.report_output.delete("1.0", tk.END)
                 self.report_output.insert(tk.END, "Report not yet implemented.")
-                return
-
+                return 
+            
+            # Shows stuff in a grid view
+            # Get column names from cursor description
+            columns = [desc[0] for desc in cursor.description]
+            # Configure treeview columns
+            self.report_output['columns'] = columns
+            for col in columns:
+                self.report_output.heading(col, text=col.replace('_', ' ').title())
+                self.report_output.column(col, width=100) # Adjust width as needed
+            # Fetch and insert data
             rows = cursor.fetchall()
-            self.report_output.delete("1.0", tk.END)
+            # Clear previous data
+            for item in self.report_output.get_children():
+                self.report_output.delete(item)
             if not rows:
-                self.report_output.insert(tk.END, "No results found.")
+                messagebox.showinfo("Report", "No results found.")
             else:
                 for row in rows:
-                    self.report_output.insert(tk.END, str(row) + "\n")
+                    self.report_output.insert('', 'end', values=row)
 
         except mysql.connector.Error as err:
             messagebox.showerror("Database Error", str(err))
